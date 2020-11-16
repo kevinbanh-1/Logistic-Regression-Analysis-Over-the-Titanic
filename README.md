@@ -1,4 +1,4 @@
-# Logistic-Regression-Analysis-Over-the-Titanic
+# Predicting-Probability-Of-Survival-of-a-Titanic-Passenger-Given-Their-Traits
 This project is over the Titanic kaggle set and focuses on predicting what traits in a passenger aboard the Titanic lead to better chances of survival. All analysis is done in R.
 
 ### Analysis includes:
