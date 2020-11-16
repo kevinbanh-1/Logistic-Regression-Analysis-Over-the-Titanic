@@ -1,0 +1,514 @@
+---
+title: "Predicting Survival Traits in Titanic Passengers"
+author: "Kevin Banh"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    theme: united
+bibliography: '4773P2Bib.bib'
+abstract: This project is over the Titanic disaster. We wish to analyze what factors of a passenger can affect their likelihood of dying or surviving. Thus, since we would like to test if a person survives or not, then we will do logistic regression analysis for a binary response variable. We will test and refine our model to produce a set of explanatory variables that are necessary and test the underlying meaning.
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Introduction
+
+## Variables {.tabset .tabset-fade .tabset-pills}
+
+### Survival
+
+Qualitative discrete binary variable representing whether the passenger has died or not. There are 2 levels: 0 representing that the passenger has died and 1 being that the passenger lived.
+
+### Pclass
+
+Qualitative discrete variable representing the ticket class, in other words the social class. There are 3 levels: upper, middle, and lower class represented by 1,2,3 respectively.
+
+### Sex
+
+Qualitative discrete binary variable representing gender. The number 1 will represent male and 0 female.
+
+### Age
+
+Quantitative continuous variable representing age. 
+
+### Sibsp
+
+Quantitative continuous variable representing the number of siblings and spouses on-board
+
+### Parch
+
+Quantitative continuous variable representing the number of parents and children on-board
+
+### Fare
+
+Quantitative continuous variable representing the amount paid for a ticket
+
+## Titanic Background
+
+The Titanic has been a major historical event, representing the worst cruise ship disaster ever. The ship remains the biggest to date to sink. The following information is found in @titanic.
+
+![Titanic](C:/Users/kevin/OneDrive/Documents/MATH4773/Project2/titanic.png){#id .class width=700 height=500px}
+
+The Titanic was a British ocean liner, which is a large ship used to traverse through seas and oceans. It was constructed in April 2, 1912 and began its historic voyage in April 10, 1912. The ship carried some of the wealthiest people in the world as well as emigrants from Europe looking to settle in the united States. On-board the ship, there were luxurious accommodations including a gym, pool, and high-class restaurants. In addition, there were advanced safety features such as watertight compartments whose doors could be remotely controlled. Out of 2,435 passengers on-board, there were 48 lifeboats that could accommodate 1,178 people. The ship was set to follow the following route, starting in the United Kingdom and set to end in New York:
+
+![Titanic Route](C:/Users/kevin/OneDrive/Documents/MATH4773/Project2/Titanic-Route.jpg)
+
+The titanic site in the image represents the crash site about four days out in the sea, where the Titanic crashed into an iceberg, destroying the hull and flooding the lower levels. Only a total of 706 people survived in the end.
+
+## Data collection
+The data set was collected from Kaggle (https://www.kaggle.com/c/titanic/data).
+
+## Cleaning the data
+
+Before we do any of our analysis, we will need to clean up our data set by replacing the empty cells with NAs and factoring certain variables that we will need for our model.
+
+```{r}
+titanic <- read.csv("titanic_train.csv", na.strings=c("","NA"))
+titanic$sex <- factor(titanic$sex)
+titanic$Embarked <- factor(titanic$embarked)
+titanic$pclass <- factor(titanic$pclass)
+head(titanic)
+```
+
+
+
+## Objective
+
+We wish to analyze what factors in a passenger that would've allowed a better survival rate on the Titanic.
+
+
+
+
+# Theory {.tabset .tabset-fade .tabset-pills}
+
+The following results can be found in @ching_2020
+
+## Logistic Regression Model
+
+The general multiple linear regression model is
+
+$$E(Y) = \beta_0 + \beta_1x_1 + \beta_2x_2 + ... + \beta_kx_k$$
+
+What the logistic regression model does is probabilistically model binary variables.
+
+The sigmoid function is
+
+![Sigmoid]{C:/Users/kevin/OneDrive/Documents/MATH4773/Project2/SigmoidFunction.jpg}
+
+We can use this function to transform our linear regression model to a probabilistic model.
+
+$$ \theta(z) = \frac{e^z}{1+e^z} = \frac{\frac{e^z}{e^z}}{\frac{1}{e^z} + \frac{e^z}{e^z}} = \frac{1}{1 + e^{-z}}$$
+
+For all values of z, $0 \leq \theta(z) \leq 1$. If we let $z = E(Y)$, then the new model becomes
+
+$$\theta(z = E(Y)) = \frac{1}{1 + e^{-( \beta_0 + \beta_1x_1 + \beta_2x_2 + ... + \beta_kx_k)}}$$
+
+$$ \theta = \frac{1}{1+e^{-y}} $$
+
+Solving for $y$, we get
+
+$$ 1 + e^{-y} = \frac{1}{\theta}$$
+
+$$ e^{-y} = \frac{1}{\theta} - \frac{\theta}{\theta}$$
+
+$$ y = -log(\frac{1- \theta}{\theta})$$ 
+
+Hence, the multiple linear regression equation transformed under logistic regression is
+
+$$ y = log(\frac{\theta}{1-\theta})$$
+
+## Odds Derivation
+
+$$e^{-( \beta_0 + \beta_1x_1 + \beta_2x_2 + ... + \beta_kx_k)} = \frac{\theta}{1-\theta}$$
+
+Hence, the odds are
+
+$$Odds = \frac{\theta}{1-\theta}$$
+
+and the log of odds is
+
+$$Logit  =  log(Odds) = log(\frac{\theta}{1-\theta})$$
+What the logit function does is map probabilities from (0,1) to continuous values $(-\infty, \infty)$ thus creating a link between the independent variables and the Bernoulli distribution (@ching_2020).
+
+
+
+# Choosing Model {.tabset .tabset-fade .tabset-pills}
+
+We want to explore what factors of an individual can lead to better survival. Hence, we will have our survived variable as the response variable and all other factors as independent variables. Since many of the factors are correlated to another i.e ticket class is directly related to the wealth of an individual along with fare paid, we need to have interaction terms for each of our variables. Since this model can get very dense in its independent variables as seen below. Additionally, due to the fact that our Y response is a binary variable consisting of only 0's and 1's, we will need to use logistic regression. Thus, instead of lm() we will use glm(), which stands for the generalized linear model.
+
+```{r}
+titanic.df <- with(titanic,
+                   data.frame(survived = survived, pclass = pclass, age = age, sex = sex, sibsp = sibsp, parch = parch, fare = fare))
+titanic.lm <- glm(survived ~ .^2, data = titanic.df, family = "binomial")
+summary(titanic.lm)
+```
+
+Observe that while the model itself is adequate on a level of 0.05 as seen by the p-value of the F-statistic $2.2 x 10 ^{-16} < .05$, many of the variables in our model are for the null hypothesis. Thus, to choose the best model we will use the Akaike information criterion (AIC), which calculates the theoretical distance of each model from the true model using the following formula: 
+
+$$AIC =  \frac{-2LL}{N} + 2\frac{k}{N})$$
+
+where $N$ is the number of samples and LL is the log-likelihood of the model.
+
+## Stepwise Regression
+```{r, results = 'hide'}
+library(MASS)
+library(leaps)
+titanic.m <- titanic.lm
+model.matrix(titanic.m)
+```
+
+```{r}
+stepAIC(titanic.m, scope = list(lower = ~1, upper = ~.),direction = "backward")
+```
+
+
+```{r}
+step.model <- glm(formula = survived ~ pclass + age + sex + sibsp + parch + 
+    fare + pclass:age + pclass:sex + pclass:sibsp + age:sex + 
+    age:parch + sibsp:fare, family = "binomial", data = titanic.df)
+```
+
+## Anova
+```{r}
+library(s20x)
+anova(step.model,test = "Chisq")
+adjusted.glm <- glm(survived ~ pclass + parch + age + sex + sibsp + pclass:sex + age:sex + age:parch, family = "binomial",data = titanic.df)
+anova(adjusted.glm, test = "Chisq")
+summary(adjusted.glm)
+```
+
+The null hypothesis of the ANOVA test is that the $\beta$ values of our interaction terms are 0. From the output, since the p-value is less than .05, we conclude that there is sufficient evidence against the null in favor for the alternate. That is, that at least 1 of the $\beta$ terms of our interaction terms are not 0. Hence, we will choose the more complex model moving forward.
+
+
+
+## Pseudo $R^2$
+
+Logistic regression doesn't have methods from linear regression to calculate r-squared, however, there are some pseudo-methods created to calculate the r-squared for a logistic regression. Notably, this test uses the McFadden method defined as
+
+$$R_{McFadden}^2 = 1-\frac{log(L_M)}{log(L_0)}$$
+
+where $L_M$ is the log likelihood value for a fitted model and $L_0$ is the log likelihood for the null model containing only a response variable (@rblog). The package pscl has a function pR2 that will calculate that $R^2$ value:
+
+```{r}
+library(pscl)
+pR2(adjusted.glm)
+```
+
+Observing the McFadden probability -- we get that the psuedo-$R^2 = .3774$. That is, 37.74% of the variability in survival rate is explained by our predictors.
+
+## Check Assumptions {.tabset .tabset-fade .tabset-pills}
+
+The assumptions of a logistic regression model found in @gregory are 
+
+* There is a linear relationship between the logit of the outcome and each predictor variables
+* Observations are independent of each other
+* Little to no multicollinearity
+* Large enough sample size (around 30 or more samples)
+
+
+### Independence
+```{r}
+names(titanic.df)
+z<- chisq.test(titanic.df$pclass,titanic.df$sex)
+z$expected
+z
+```
+
+We use a chi-square test of independence for our two categorical independent variables pclass and sex. The null hypothesis of a chi-square test is that there is there difference between the variables and thus they're independent. We checked our assumptions that the expected value of each cell is greater than or equal to 5 hence we can conduct the test. 
+
+We have a p-value of 4.175 x $10^-5$ hence there is strong evidence against the null in favor for the alternate that our explanatory categorical variables are not independent.
+
+
+
+### Multicollinearity test
+
+We will test for multicollinearity by using the variance inflation factor (VIF). VIF is calculated by taking the ratio of the overall model variance to the variance of a model with only 1 predictor. A VIF of around 5 or more can indicate multicollinearity.
+
+```{r}
+library(car)
+vif(adjusted.glm)
+```
+
+From our test, we see that none of our values reach or exceed 5 thus there is no multicollinearity and we can carry on with our tests. 
+
+### Linearity test
+```{r}
+plot(adjusted.glm$linear.predictors, na.omit(titanic.df$age))
+```
+
+The smoothed scatter plots we see here show that all 3 continuous variables are linearly associated with survival rate on a logit scale. Hence, we conclude that our data is linear.
+
+### Large enough sample size
+```{r}
+dim(titanic.df)
+```
+
+This is a large enough sample size.
+
+# Analysis of data {.tabset .tabset-fade .tabset-pills}
+
+## Initial plots {.tabset .tabset-fade .tabset-pills}
+```{r}
+library(ggplot2)
+library(visreg)
+library(tidyverse)
+library(broom)
+```
+
+### Logistic regression plots of continuous explanatory variables
+```{r}
+log1 <- ggplot(titanic.df, aes(x=age, y=survived)) +
+    stat_sum()+
+    stat_smooth(method="glm",
+                method.args = list(family="binomial"), se=TRUE,
+                fullrange=TRUE) +
+    labs(x="age", y="survival success")+
+    expand_limits(x=20) + ggtitle("Logistic Plot of Survival Chance vs. Age")
+log1
+
+```
+
+Observing the plot above, we see that a large majority of passengers aboard the Titanic have ages of around 18-37. From the plot, the probability of a passenger's survival gradually decreases as age increases. This result makes sense because the older a person is, the less able-bodied they are and during the harsh conditions of the Titanic being so far up north, survival chances will lower.
+
+```{r}
+log2 <- ggplot(titanic.df, aes(x=sibsp, y=survived)) +
+    stat_sum()+
+    stat_smooth(method="glm",
+                method.args = list(family="binomial"), se=TRUE,
+                fullrange=TRUE) +
+    labs(x="number of siblings/spouses", y="survival success")+
+    expand_limits(x=20) + ggtitle("Logistic Plot of Survival Chance vs. Sibsp")
+log2
+```
+
+For the large majority of passengers aboard, they have only 0-1 siblings and spouses. The probability of survival decrease the more siblings and spouses a passenger has.
+
+```{r}
+log2 <- ggplot(titanic.df, aes(x=parch, y=survived)) +
+    stat_sum()+
+    stat_smooth(method="glm",
+                method.args = list(family="binomial"), se=TRUE,
+                fullrange=TRUE) +
+    labs(x="number of children and parents aboard", y="survival success")+
+    expand_limits(x=20) + ggtitle("Logistic Plot of Survival Chance vs. Parch")
+log2
+```
+
+From the plot, we can see that the more children and parents a passenger has, the probability of survival actually goes up. 
+
+
+
+### Survived vs. Pclass
+```{r}
+visreg(adjusted.glm,"pclass",gg=TRUE)
+```
+
+From this data set, we see that the largest amount of samples came from pclass of 3, which is meant to be for the lower class (upper class is 1). While there isn't much of a difference, observing the blue line representing the mean amount, we see that the ticket class of 1 tends to have a higher survivability rate, due to factors such as the high chance of having a higher priority to lifeboats than lower class tickets.
+
+### Survived vs. Pclass:Sex
+
+```{r}
+visreg(adjusted.glm,"pclass", by="sex",gg=TRUE)
+```
+
+Now, observing the plot with interaction between pclass and sex, we see that mid to higher class female passengers (pclass of 1-2) have a much higher rate of survival than men of the same class. 
+
+### Survived vs. Age
+```{r}
+visreg(adjusted.glm,"age", gg=TRUE)
+```
+
+Seeing the plot with survived vs. age, we see that there's a clear trend where the older the person is, the less chance he/she survives. This result makes sense because the older a person is, the less able-bodied they are and during the harsh conditions of the Titanic being so far up north, survival chances will lower.
+
+### Survived vs. Age:Sex
+```{r}
+visreg(adjusted.glm,"age", by = "sex",gg=TRUE)
+```
+
+Now, observing the interaction between age and gender, we see that females across all ages have a vastly higher suurvival rate than male and actually the trend is positive as opposed to male. This can be contradictory to our previous interpretation of survival vs. age plot without interaction, but something to note was that older women and babies were actually more prioritized to get on lifeboats. The result was 72% of women and 50% of the children on board were saved, but only a striking percent of 16% of the men were (@womenchildrenfirst).
+
+### Survived vs. Sex
+```{r}
+visreg(adjusted.glm,"sex",gg=TRUE)
+```
+
+Here, we see that, on average, females have a vastly higher survivability rate. The mean line for women lies around 0.51 while for men 0.24. A large number of the men's samples lie below the mean line. This stark difference between the two genders could be due to the fact that women and their children are prioritized more than men to escape in lifeboats as we've stated in the previous plot.
+
+### Survived vs. Sibsp
+```{r}
+visreg(adjusted.glm,"sibsp",gg=TRUE)
+```
+ 
+For the amount of survived vs. sibsp, the number of siblings and spouses the person has, there is a clear downward trend. This is highly due to the fact that people with family are less likely to leave them behind.  Hence, the survivability rate would logically go down because the person's survivability is dependent on the actions of his/her family. 
+
+### Survived vs. Age:Parch
+```{r}
+visreg(adjusted.glm,"age", by = "parch",gg=TRUE)
+```
+
+Here, we see that there's actually a positive trend in survivability vs. parch, which is the number of parents/children aboard. A possible factor is that parents prioritize their children's safety over theirs.
+
+
+
+
+# Summary of Glm object {.tabset .tabset-fade .tabset-pills}
+```{r}
+summary(adjusted.glm)
+```
+
+The test conducted by summary() of a general linear model is the Wald test. The Wald test is an approximation of a likelihood ratio test and compares models while adding on an explanatory variable each time. The null hypothesis of a Wald test is that the set of parameters are equal to 0. Since we've already went through this process to choose the best model using AIC and summary(), our model now only has all the explanatory variables and interaction terms that are statistically significant to our model on a .05 level. Hence, all main effects/interaction terms have a p-value less than .05.
+
+## Interpreting $\beta$ coefficients {.tabset .tabset-fade .tabset-pills}
+
+### Intercept (survived)
+```{r}
+exp(2.650814)
+```
+The odds of survival given that all explanatory variables are 0 increases by a multiple of 14.1655
+
+
+### pclass2
+```{r}
+exp(-.625293)
+```
+For every one unit increase in pclass2 (ticket class), the odds of survival are decreased by a multiple of .5351 while all other variables are held constant.
+
+### pclass3
+```{r}
+exp(-3.302568)
+```
+
+For every one unit increase in pclass3, the odds of survival are decreased by a multiple of 0.0369 while all other variables are held constant.
+
+### parch
+```{r}
+exp(0.979468)
+```
+
+For every one unit increase in parch (number of parents/children), the odds of survival are increased by a multiple of 2.663 while all other variables are held constant.
+
+### age
+```{r}
+exp(0.016138)
+```
+
+For every one unit increase in age, the odds of survival are increased by a multiple of 1.0162 while all other variables are held constant.
+
+### sexmale
+```{r}
+exp(-0.963842)
+```
+
+For every one unit increase in male gender, the odds of survival are decreased by a multiple of 0.3814 while all other variables are held constant.
+
+### sibsp
+```{r}
+exp(-0.556646)
+```
+For every one unit increase in sibsp, the odds of survival are decreased by a multiple of 0.5731 while all other variables are held constant.
+
+### sexmale:pclass2
+```{r}
+exp(1.426428)
+```
+
+For every one unit increase in a passenger being male as well as being of pclass2, the odds of survival are increased by a multiple of 4.1638 while all other variables are held constant.
+
+### sexmale:pclass3
+```{r}
+exp(-0.072897)
+```
+
+For every one unit increase in a passenger being male as well as being of pclass3, the odds of survival are decreased by a multiple of 0.9297 while all other variables are held constant.
+
+### age:sexmale
+```{r}
+exp(-0.072897)
+```
+
+For every one unit increase in age of a male passenger, the odds of survival are decreased by a multiple of 0.9297 while all other variables are held constant.
+
+### parch:age
+```{r}
+exp(-0.027330)
+```
+
+For every one unit increase in a passenger's age and their parents/children, the odds of survival are decreased by a multiple of 0.9730 while all other variables are held constant.
+
+
+## Multiple R-squared
+```{r}
+pR2(adjusted.glm)
+```
+
+When calculating for the pseudo-$R^2$, the adjusted and the multiple $R^2$ values are the. Hence, since the McFadden $R^2$ value is .3774, this means that 37.74% of the variability in survival rate is explained by our predictors such as age and sex. 
+
+
+
+# Calculate CIs for $\beta$ parameter estimates {.tabset .tabset-fade .tabset-pills}
+
+## Prediction interval 
+```{r}
+newdt <- data.frame(age = 21, sibsp = 0, parch = 2, sex = "female", pclass = "1")
+predict(adjusted.glm,newdt, type = "response")
+```
+
+If a Titanic passenger is of the age 21, has 0 siblings or spouses, has a total of 2 parents or children, of the pclass 1 (high class), and they are a female, then the probability of the passenger surviving the Titanic crash is 97.8%. This result is in line with what we've concluded from our plots.
+
+## Confidence interval $\beta$ parameter estimates {.tabset .tabset-fade .tabset-pills}
+```{r}
+library(foreign)
+suppressMessages(confint(adjusted.glm))
+```
+
+Suppose we interpret the pclass2's confidence interval. The result means that we are 95% confident that the true mean difference between survival rate given that the passenger was of pclass2 and the survival rate given that the passenger was of pclass1 lies within the interval [-1.98100538,0.681649818]. Since this interval is negative and positive, we cannot be certain whether pclass2 has a survivability rate greater than pclass1.
+
+However, let's take a look at pclass3's confidence interval. The result means that we are 95% confident that the true mean difference between survival rate given that the passenger was of pclass3 and the survival rate given that the passenger was pclass1 is within the interval [-4.56987343,-2.240065098]. Only negative values are contained in this interval hence we can conclude that the survivability rate of pclass3 is lower than that of pclass1, which again also confirms our initial beliefs given the plots.
+
+## Cook's Distance 
+```{r}
+plot(adjusted.glm, which = 4, id.n = 3)
+```
+
+Observing this plot, we see that there are 3 clear points which stand out from the rest. These are possible outliers that we will need to remove.
+
+```{r}
+model.data <- augment(adjusted.glm) %>%
+  mutate(index = 1:n())
+
+# Find top 3 largest values
+model.data %>% top_n(3,.cooksd)
+
+
+ggplot(model.data, aes(index, .std.resid)) + 
+  geom_point(aes(color = survived), alpha = .5) + theme_bw()
+```
+
+From this graph, we see that there are around 5 points greater than $Z = 3$ thus we will need to remove them because they are outliers.
+
+```{r}
+# Remove outliers
+model.data %>% 
+  filter(abs(.std.resid) > 3)
+```
+
+
+# Video
+```{r}
+library(vembedr)
+embed_url("https://youtu.be/VC9X0vRvf9Y")
+```
+
+
+# Conclusion
+
+The purpose of this analysis was to predict what features of a passenger can affect their survival from the Titanic crash -- measured by 0 for death and 1 by survived. Because the response variable survived was binary, we needed to use logistic regression to get accurate results. Thus, we used the generalized linear model glm() function. First, we did created a full model containing all of the interaction terms. Then we did an AIC test to find the best model and further reduced it using ANOVA. Creating plots and interpreting them, we found that sex and pclass were among the most influential predictors in survival rate. Females overall had a much higher survival rate than men when other predictors are kept constant and wealthier individuals defined by their ticket class (pclass) had a higher chance of survival than those of lower ticket classes. Additionally, the older a person was the less likely they were to survive.
+
+
+
+# References
